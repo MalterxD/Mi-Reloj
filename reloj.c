@@ -9,7 +9,7 @@
 #include <termios.h>
 #include <time.h>
 #include <unistd.h>
-
+#include <strings.h>
 static volatile sig_atomic_t g_stop = 0;
 static volatile sig_atomic_t g_need_clear = 0;
 static volatile sig_atomic_t g_show_seconds_big = 0;
@@ -62,30 +62,93 @@ static void get_terminal_size(int *rows, int *cols) {
 }
 
 static const unsigned char BIG_MASK[10][7][5] = {
-    {{1,1,1,1,1},{1,0,0,0,1},{1,0,0,0,1},{1,0,0,0,1},{1,0,0,0,1},{1,0,0,0,1},{1,1,1,1,1}}, // 0
-    {{0,0,1,0,0},{0,1,1,0,0},{0,0,1,0,0},{0,0,1,0,0},{0,0,1,0,0},{0,0,1,0,0},{0,1,1,1,0}}, // 1
-    {{1,1,1,1,1},{0,0,0,0,1},{0,0,0,0,1},{1,1,1,1,1},{1,0,0,0,0},{1,0,0,0,0},{1,1,1,1,1}}, // 2
-    {{1,1,1,1,1},{0,0,0,0,1},{0,0,0,0,1},{1,1,1,1,1},{0,0,0,0,1},{0,0,0,0,1},{1,1,1,1,1}}, // 3
-    {{1,0,0,0,1},{1,0,0,0,1},{1,0,0,0,1},{1,1,1,1,1},{0,0,0,0,1},{0,0,0,0,1},{0,0,0,0,1}}, // 4
-    {{1,1,1,1,1},{1,0,0,0,0},{1,0,0,0,0},{1,1,1,1,1},{0,0,0,0,1},{0,0,0,0,1},{1,1,1,1,1}}, // 5
-    {{1,1,1,1,1},{1,0,0,0,0},{1,0,0,0,0},{1,1,1,1,1},{1,0,0,0,1},{1,0,0,0,1},{1,1,1,1,1}}, // 6
-    {{1,1,1,1,1},{0,0,0,0,1},{0,0,0,1,0},{0,0,1,0,0},{0,0,1,0,0},{0,0,1,0,0},{0,0,1,0,0}}, // 7
-    {{1,1,1,1,1},{1,0,0,0,1},{1,0,0,0,1},{1,1,1,1,1},{1,0,0,0,1},{1,0,0,0,1},{1,1,1,1,1}}, // 8
-    {{1,1,1,1,1},{1,0,0,0,1},{1,0,0,0,1},{1,1,1,1,1},{0,0,0,0,1},{0,0,0,0,1},{1,1,1,1,1}}  // 9
+    {{1,1,1,1,1},{1,0,0,0,1},{1,0,0,0,1},{1,0,0,0,1},{1,0,0,0,1},{1,0,0,0,1},{1,1,1,1,1}},
+    {{0,0,1,0,0},{0,1,1,0,0},{0,0,1,0,0},{0,0,1,0,0},{0,0,1,0,0},{0,0,1,0,0},{0,1,1,1,0}},
+    {{1,1,1,1,1},{0,0,0,0,1},{0,0,0,0,1},{1,1,1,1,1},{1,0,0,0,0},{1,0,0,0,0},{1,1,1,1,1}},
+    {{1,1,1,1,1},{0,0,0,0,1},{0,0,0,0,1},{1,1,1,1,1},{0,0,0,0,1},{0,0,0,0,1},{1,1,1,1,1}},
+    {{1,0,0,0,1},{1,0,0,0,1},{1,0,0,0,1},{1,1,1,1,1},{0,0,0,0,1},{0,0,0,0,1},{0,0,0,0,1}},
+    {{1,1,1,1,1},{1,0,0,0,0},{1,0,0,0,0},{1,1,1,1,1},{0,0,0,0,1},{0,0,0,0,1},{1,1,1,1,1}},
+    {{1,1,1,1,1},{1,0,0,0,0},{1,0,0,0,0},{1,1,1,1,1},{1,0,0,0,1},{1,0,0,0,1},{1,1,1,1,1}},
+    {{1,1,1,1,1},{0,0,0,0,1},{0,0,0,1,0},{0,0,1,0,0},{0,0,1,0,0},{0,0,1,0,0},{0,0,1,0,0}},
+    {{1,1,1,1,1},{1,0,0,0,1},{1,0,0,0,1},{1,1,1,1,1},{1,0,0,0,1},{1,0,0,0,1},{1,1,1,1,1}},
+    {{1,1,1,1,1},{1,0,0,0,1},{1,0,0,0,1},{1,1,1,1,1},{0,0,0,0,1},{0,0,0,0,1},{1,1,1,1,1}}
 };
 
 static const unsigned char COLON_MASK[7] = {0, 0, 1, 0, 1, 0, 0};
 
 static void move_cursor(int r, int c) { printf("\033[%d;%dH", r, c); }
 
-static void draw_clock_centered(int term_rows, int term_cols, int hh, int mm, int ss) {
+static void get_distro_short(char *buf, size_t len) {
+    buf[0] = '\0';
+    FILE *f = fopen("/etc/os-release", "r");
+    if (!f) return;
+
+    char id[64] = {0};
+    char name[128] = {0};
+    char line[256];
+
+    while (fgets(line, sizeof(line), f)) {
+        if (strncmp(line, "ID=", 3) == 0) {
+            char *val = line + 3;
+            if (*val == '"') val++;
+            size_t l = strlen(val);
+            while (l > 0 && (val[l-1] == '\n' || val[l-1] == '"' || val[l-1] == '\r')) val[--l] = '\0';
+            snprintf(id, sizeof(id), "%s", val);
+        } else if (strncmp(line, "NAME=", 5) == 0) {
+            char *val = line + 5;
+            if (*val == '"') val++;
+            size_t l = strlen(val);
+            while (l > 0 && (val[l-1] == '\n' || val[l-1] == '"' || val[l-1] == '\r')) val[--l] = '\0';
+            snprintf(name, sizeof(name), "%s", val);
+        }
+    }
+    fclose(f);
+
+static const struct { const char *id; const char *label; } known[] = {
+        {"fedora",                "Fedora"},
+        {"arch",                  "Arch Linux"},
+        {"debian",                "Debian"},
+        {"ubuntu",                "Ubuntu"},
+        {"opensuse-leap",         "openSUSE Leap"},
+        {"opensuse-tumbleweed",   "openSUSE Tumbleweed"},
+        {"gentoo",                "Gentoo"},
+        {"nixos",                 "NixOS"},
+        {"manjaro",               "Manjaro"},
+        {"endeavouros",           "EndeavourOS"},
+        {"linuxmint",             "Linux Mint"},
+        {"pop",                   "Pop!_OS"},
+        {"kali",                  "Kali Linux"},
+        {"void",                  "Void Linux"},
+        {"alpine",                "Alpine Linux"},
+        {"artix",                 "Artix Linux"},
+        {"zorin",                 "Zorin OS"},
+        {"slackware",             "Slackware"},
+        {"rocky",                 "Rocky Linux"},
+        {"almalinux",             "AlmaLinux"},
+        {"garuda",                "Garuda Linux"},
+        {"nobara",                "Nobara Linux"},
+        {NULL, NULL}
+    };
+
+    for (int i = 0; known[i].id != NULL; i++) {
+        if (strcasecmp(id, known[i].id) == 0) {
+            snprintf(buf, len, "%s", known[i].label);
+            return;
+        }
+    }
+
+    if (name[0] != '\0') snprintf(buf, len, "%s", name);
+}
+
+static void draw_clock_centered(int term_rows, int term_cols, int hh, int mm, int ss,
+                                 const struct tm *t) {
     int digit_w = 5, digit_h = 7, px_w = 2, gap_px = 2;
     int want_seconds = g_show_seconds_big;
 
     int n_parts = want_seconds ? 8 : 5;
     int time_w = ((want_seconds ? 6 : 4) * digit_w + (want_seconds ? 2 : 1)) * px_w + (n_parts - 1) * (gap_px * 2);
 
-    if (time_w > term_cols) { // Fallback texto simple si no cabe
+    if (time_w > term_cols) {
         move_cursor(term_rows / 2, (term_cols - 8) / 2);
         printf("%02d:%02d:%02d", hh, mm, ss);
         return;
@@ -108,10 +171,41 @@ static void draw_clock_centered(int term_rows, int term_cols, int hh, int mm, in
             if (p < limit - 1) printf("  ");
         }
     }
-    
+
+    static const char *months[] = {
+        "January","February","March","April","May","June",
+        "July","August","September","October","November","December"
+    };
+    static const char *days[] = {
+        "Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"
+    };
+
+    char date_str[64];
+    snprintf(date_str, sizeof(date_str), "%s, %s %d %04d",
+             days[t->tm_wday], months[t->tm_mon], t->tm_mday, t->tm_year + 1900);
+    int date_len = (int)strlen(date_str);
+
+    char distro[64];
+    get_distro_short(distro, sizeof(distro));
+    int dlen = (int)strlen(distro);
+
+    int row = top + digit_h + 1;
+
     if (!want_seconds) {
-        move_cursor(top + digit_h + 1, left + (time_w / 2) - 3);
+        move_cursor(row, left + (time_w / 2) - 3);
         printf("\033[38;5;245mSS: %02d\033[0m", ss);
+        row++;
+    }
+
+    if (date_len > 0) {
+        move_cursor(row, (term_cols - date_len) / 2 + 1);
+        printf("\033[38;5;245m%s\033[0m", date_str);
+        row++;
+    }
+
+    if (dlen > 0) {
+        move_cursor(row, (term_cols - dlen) / 2 + 1);
+        printf("\033[38;5;240m%s\033[0m", distro);
     }
 }
 
@@ -151,7 +245,7 @@ int main(void) {
         }
         printf("\033[H");
 
-        draw_clock_centered(r, c, t->tm_hour, t->tm_min, t->tm_sec);
+        draw_clock_centered(r, c, t->tm_hour, t->tm_min, t->tm_sec, t);
         fflush(stdout);
 
         handle_input();
