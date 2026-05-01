@@ -368,6 +368,23 @@ static void handle_input(void)
 
 int main(int argc, char *argv[])
 {
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--help") == 0) {
+            printf("Uso: clock [opciones]\n");
+            printf("Opciones:\n");
+            printf("  -12       Modo 12 horas\n");
+            printf("  -24       Modo 24 horas\n");
+            printf("  --help    Mostrar esta ayuda\n");
+            return 0;
+        }
+        if (strcmp(argv[i], "-12") == 0) {
+            g_use_24h = 0;
+        }
+        if (strcmp(argv[i], "-24") == 0) {
+            g_use_24h = 1;
+        }
+    }
+
     load_config();
     
     char distro_name[64];
