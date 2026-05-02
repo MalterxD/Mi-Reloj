@@ -2,6 +2,7 @@ CC      = gcc
 CFLAGS  = -Wall -Wextra -pedantic -std=c11 -O2
 TARGET  = clock
 SRC     = reloj.c
+HDR     = reloj.h
 
 PREFIX  = /usr/local
 BINDIR  = $(PREFIX)/bin
@@ -10,7 +11,7 @@ BINDIR  = $(PREFIX)/bin
 
 all: $(TARGET)
 
-$(TARGET): $(SRC)
+$(TARGET): $(SRC) $(HDR)
 	$(CC) $(CFLAGS) -o $(TARGET) $(SRC)
 
 run: $(TARGET)
