@@ -20,6 +20,13 @@ Ejecuta el comando desde cualquier lugar:
 
     clock --help (Ayuda)
 ```
+## Arquitectura del Reloj
+
+El código ha sido refactorizado para máxima legibilidad y mantenimiento:  
+
+    reloj.h: Interfaz técnica que define la estructura de estado ClockState y los contratos de las funciones.  
+    reloj.c: Implementación de la lógica de renderizado, manejo de terminal (Raw Mode) y motor de temporizador.  
+
 ## Controles
 ```bash
     s: Alternar tamaño de segundos.
