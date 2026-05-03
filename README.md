@@ -1,5 +1,9 @@
 # Reloj CLI
 
+<p align="center">
+  <img src="assets/reloj.png" alt="Reloj CLI Preview" width="600">
+</p>
+
 Reloj digital para la terminal escrito en **C**.
 
 ## Instalacion
@@ -39,6 +43,7 @@ El código está diseñado siguiendo principios de modularidad:
 
 Edita el archivo ~/.relojrc para personalizar el color y formato:
 ```bash
+autocolor=false
 color=cyan
 format=12h
 ```
