@@ -22,10 +22,10 @@ Ejecuta el comando desde cualquier lugar:
 ```
 ## Arquitectura del Reloj
 
-El código ha sido refactorizado para máxima legibilidad y mantenimiento:  
+El código está diseñado siguiendo principios de modularidad:
 
-    reloj.h: Interfaz técnica que define la estructura de estado ClockState y los contratos de las funciones.  
-    reloj.c: Implementación de la lógica de renderizado, manejo de terminal (Raw Mode) y motor de temporizador.  
+    reloj.h: Definición de estructuras de estado y contratos de funciones.
+    reloj.c: Lógica de renderizado, manejo de terminal (Raw Mode) y motor del temporizador.
 
 ## Controles
 ```bash
