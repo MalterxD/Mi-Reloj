@@ -1,4 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
+#define _DEFAULT_SOURCE
 
 #include "reloj.h"
 #include <errno.h>
@@ -14,9 +15,9 @@
 #include <pwd.h>
 #include <poll.h>
 
-#define MODO_RELOJ 0
-#define MODO_TEMPORIZADOR 1
-#define MODO_SET_TIMER 2
+#define SEC_PER_HOUR 3600
+#define SEC_PER_MIN  60
+
 static volatile sig_atomic_t g_stop = 0;
 static volatile sig_atomic_t g_need_clear = 0;
 static struct termios g_old_termios;
@@ -120,6 +121,11 @@ static int color_name_to_ansi256(const char *name)
     return -1;
 }
 
+static char* trim_spaces(char *str) {
+    while (*str == ' ' || *str == '\t') str++;
+    return str;
+}
+
 void load_config(ClockState *state)
 {
     const char *home = getenv("HOME");
@@ -137,27 +143,27 @@ void load_config(ClockState *state)
 
     char line[256];
     while (fgets(line, sizeof(line), f)) {
-        char *nl = strchr(line, '\n');
-        if (nl) *nl = '\0';
-        if (line[0] == '#' || line[0] == '\0') continue;
+        if (line[0] == '#' || line[0] == '\n' || line[0] == '\0') continue;
 
         char *eq = strchr(line, '=');
         if (!eq) continue;
 
         *eq = '\0';
-        char *key = line;
-        char *val = eq + 1;
+        char *key = trim_spaces(line);
+        char *val = trim_spaces(eq + 1);
+        
+        char *nl = strchr(val, '\n'); 
+        if (nl) *nl = '\0';
 
-        while (*key == ' ') key++;
-        while (*val == ' ') val++;
-
-        if (strcasecmp(key, "color") == 0) {
+        if (strcasecmp(key, "autocolor") == 0) {
+            state->autocolor = (strcasecmp(val, "true") == 0);
+        }
+        else if (strcasecmp(key, "color") == 0) {
             int code = color_name_to_ansi256(val);
             if (code >= 0) state->digit_color = code;
         }
         else if (strcasecmp(key, "format") == 0) {
-            if (strcasecmp(val, "12h") == 0) state->use_24h = 0;
-            else if (strcasecmp(val, "24h") == 0) state->use_24h = 1;
+            state->use_24h = (strcasecmp(val, "24h") == 0);
         }
     }
     fclose(f);
@@ -334,39 +340,89 @@ void draw_clock_centered(int term_rows, int term_cols, int hh, int mm, int ss, c
     }
 }
 
-static void handle_input(ClockState *state)
+static int handle_input(ClockState *state)
 {
     unsigned char ch;
     if (read(STDIN_FILENO, &ch, 1) == 1)
     {
-        if (ch == 27) {
+        if (ch == 27) { // Manejo de secuencias de escape (teclas especiales o Alt)
             struct pollfd pfd = { STDIN_FILENO, POLLIN, 0 };
             if (poll(&pfd, 1, 20) <= 0) {
                 g_stop = 1;
-                return;
+                return 1;
             }
             unsigned char next_chars[2];
             read(STDIN_FILENO, next_chars, sizeof(next_chars));
-            return;
+            return 0;
         }
 
-        if (ch == 'q' || ch == 'Q') g_stop = 1;
+        if (ch == 'q' || ch == 'Q') {
+            g_stop = 1;
+            return 1;
+        }
         if (ch == 's' || ch == 'S') {
             state->show_seconds_big = !state->show_seconds_big;
             g_need_clear = 1;
+            return 1;
         }
         if (ch == 't' || ch == 'T') {
             state->use_24h = !state->use_24h;
             g_need_clear = 1;
+            return 1;
         }
         if (ch == 'v' || ch == 'V') {
             state->mode = (state->mode == MODO_RELOJ) ? MODO_SET_TIMER : MODO_RELOJ;
             g_need_clear = 1;
+            return 1;
         }
         if (ch == ' ' && state->mode == MODO_TEMPORIZADOR) {
             state->timer_running = !state->timer_running;
+            return 1;
         }
     }
+    return 0;
+}
+
+static void draw_input_box(int r, int c, const char *title, const char *prompt) {
+    int box_w = 40;
+    int box_h = 7;
+    if (c < box_w + 4 || r < box_h + 4) {
+        move_cursor(1, 1);
+        printf("\033[1;31mTerminal too small!\033[0m");
+        return;
+    }
+
+    int start_r = (r - box_h) / 2;
+    int start_c = (c - box_w) / 2;
+
+    for (int i = 1; i <= box_h; i++) {
+        move_cursor(start_r + i, start_c + 2);
+        printf("\033[48;5;234m%*s\033[0m", box_w, "");
+    }
+
+    move_cursor(start_r, start_c);
+    printf("\033[1;36m┌"); 
+    for(int i=0; i<box_w-2; i++) printf("─"); 
+    printf("┐\033[0m");
+
+    for (int i = 1; i < box_h - 1; i++) {
+        move_cursor(start_r + i, start_c);
+        printf("\033[1;36m│\033[0m %*s \033[1;36m│\033[0m", box_w - 4, "");
+    }
+
+    move_cursor(start_r + box_h - 1, start_c);
+    printf("\033[1;36m└"); 
+    for(int i=0; i<box_w-2; i++) printf("─"); 
+    printf("┘\033[0m");
+
+    move_cursor(start_r + 1, start_c + (box_w - (int)strlen(title)) / 2);
+    printf("\033[1;37m%s\033[0m", title);
+    
+    move_cursor(start_r + 3, start_c + (box_w - (int)strlen(prompt)) / 2);
+    printf("\033[38;5;242m%s\033[0m", prompt);
+
+    move_cursor(start_r + 5, start_c + (box_w / 2) - 5);
+    ansi_show_cursor();
 }
 
 int main(int argc, char *argv[])
@@ -377,8 +433,11 @@ int main(int argc, char *argv[])
         .digit_color = 252,
         .show_seconds_big = 0,
         .timer_running = 0,
-        .timer_seconds = 0
+        .timer_seconds = 0,
+        .autocolor = 1
     };
+
+    get_distro_short(state.distro, sizeof(state.distro));
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-12") == 0) state.use_24h = 0;
@@ -387,106 +446,107 @@ int main(int argc, char *argv[])
 
     load_config(&state);
     
-    char distro_name[64];
-    get_distro_short(distro_name, sizeof(distro_name));
-    int d_color = get_color_by_distro(distro_name);
-    if (d_color != 252) state.digit_color = d_color;
+    if (state.autocolor) {
+        int d_color = get_color_by_distro(state.distro);
+        if (d_color != 252) state.digit_color = d_color;
+    }
 
-    signal(SIGINT, on_signal);
-    signal(SIGTERM, on_signal);
-    signal(SIGWINCH, on_winch);
+    struct sigaction sa = {0};
+    sa.sa_handler = on_signal;
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
+
+    struct sigaction sa_winch = {0};
+    sa_winch.sa_handler = on_winch;
+    sigaction(SIGWINCH, &sa_winch, NULL);    
 
     enable_raw_mode();
     ansi_hide_cursor();
     printf("\033[2J");
 
     struct pollfd pfd = {STDIN_FILENO, POLLIN, 0};
-    int last_r = 0, last_c = 0;
-    time_t last_tick = time(NULL);
-    time_t last_drawn_second = 0;
+    time_t last_tick = 0;
     
     while (!g_stop)
     {
+        if (poll(&pfd, 1, 10) > 0) {
+            if (handle_input(&state)) {
+                last_tick = 0;
+            }
+        }
         int r, c;
         get_terminal_size(&r, &c);
 
-        if (g_need_clear || r != last_r || c != last_c) {
-            printf("\033[2J");
-            g_need_clear = 1;
-            last_r = r;
-            last_c = c;
-        }
-
         if (state.mode == MODO_SET_TIMER) {
             printf("\033[2J");
-            ansi_show_cursor();
-            int prompt_row = r / 2;
-            int prompt_col = (c - 30) / 2; 
-            if (prompt_col < 1) prompt_col = 1;
+            draw_input_box(r, c, "CONFIGURACIÓN DEL TEMPORIZADOR", "Introduzca la hora (HH:MM:SS)");
             
-            move_cursor(prompt_row, prompt_col);
-            printf("\033[1;37mSET TIMER \033[38;5;214m(HH:MM:SS)\033[37m: \033[0m");
-            fflush(stdout);
-            
-           restore_terminal();
+            restore_terminal();
             char buf[32];
             if (fgets(buf, sizeof(buf), stdin)) { 
                 int h = 0, m = 0, s = 0;
-                if (sscanf(buf, " %d:%d:%d", &h, &m, &s) == 3) {
-                    state.timer_seconds = h * 3600 + m * 60 + s;
-                } else if (sscanf(buf, " %d:%d", &m, &s) == 2) {
-                    state.timer_seconds = m * 60 + s;
-                } else if (sscanf(buf, " %d", &m) == 1) {
-                    state.timer_seconds = m * 60;
-                } else {
-                    state.timer_seconds = 0;
-                }
+                int valid = 0;
+                if (sscanf(buf, "%d:%d:%d", &h, &m, &s) == 3) valid = 1;
+                else if (sscanf(buf, "%d:%d", &m, &s) == 2) valid = 1;
+                else if (sscanf(buf, "%d", &m) == 1) valid = 1;
 
-                if (state.timer_seconds > 0) {
-                    state.timer_running = 1; 
-                    state.mode = MODO_TEMPORIZADOR;
+                if (valid) {
+                    state.timer_seconds = (long)h * SEC_PER_HOUR + m * SEC_PER_MIN + s;
+                    state.mode = (state.timer_seconds > 0) ? MODO_TEMPORIZADOR : MODO_RELOJ;
+                    state.timer_running = (state.mode == MODO_TEMPORIZADOR);
                 } else {
+                    move_cursor((r/2) + 2, (c/2) - 7);
+                    printf("\033[1;31mFormato Invalido!\033[0m");
+                    fflush(stdout);
+                    usleep(1200000);
                     state.mode = MODO_RELOJ;
                 }
             } else {
                 state.mode = MODO_RELOJ;
             }
-            
+
             enable_raw_mode();
             ansi_hide_cursor();
+            printf("\033[2J");
+            
+            last_tick = 0; 
             g_need_clear = 1;
-            last_drawn_second = 0;
             continue;
         }
 
-        time_t ahora = time(NULL);
-        if (ahora > last_tick) {
-            if (state.mode == MODO_TEMPORIZADOR && state.timer_running && state.timer_seconds > 0) {
-                state.timer_seconds--;
-            }
-            last_tick = ahora;
+        if (g_need_clear) {
+            printf("\033[2J");
+            g_need_clear = 0;
         }
 
-        if (ahora != last_drawn_second || g_need_clear) { 
-            printf("\033[H");
-            if (state.mode == MODO_RELOJ) {
-                struct tm *t = localtime(&ahora);
-                int hour = t->tm_hour;
-                int is_pm = (hour >= 12);
-                if (!state.use_24h) {
-                    hour = hour % 12;
-                    if (hour == 0) hour = 12;
-                }
-                draw_clock_centered(r, c, hour, t->tm_min, t->tm_sec, t, is_pm, &state);
-            } else {
-                int th = state.timer_seconds / 3600;
-                int tm = (state.timer_seconds % 3600) / 60;
-                int ts = state.timer_seconds % 60;
-                draw_clock_centered(r, c, th, tm, ts, NULL, 0, &state);
+        time_t ahora = time(NULL);
+        if (ahora != last_tick || last_tick == 0) {
+            if (ahora != last_tick && state.mode == MODO_TEMPORIZADOR && state.timer_running && state.timer_seconds > 0) {
+                state.timer_seconds--;
             }
+            
+            printf("\033[H");
+            struct tm *t = localtime(&ahora);
+            int display_h, display_m, display_s, is_pm = 0;
+
+            if (state.mode == MODO_TEMPORIZADOR) {
+                display_h = (int)(state.timer_seconds / SEC_PER_HOUR);
+                display_m = (int)((state.timer_seconds % SEC_PER_HOUR) / SEC_PER_MIN);
+                display_s = (int)(state.timer_seconds % SEC_PER_MIN);
+            } else {
+                display_h = t->tm_hour;
+                display_m = t->tm_min;
+                display_s = t->tm_sec;
+                is_pm = (display_h >= 12);
+                if (!state.use_24h) {
+                    display_h = display_h % 12;
+                    if (display_h == 0) display_h = 12;
+                }
+            }
+
+            draw_clock_centered(r, c, display_h, display_m, display_s, t, is_pm, &state);
             fflush(stdout);
-            last_drawn_second = ahora;
-            g_need_clear = 0;
+            last_tick = ahora;
         }
 
         if (poll(&pfd, 1, 100) > 0) {
@@ -494,8 +554,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    ansi_show_cursor();
     restore_terminal();
-    printf("\n");
     return 0;
 }

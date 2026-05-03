@@ -14,6 +14,8 @@ typedef struct {
     int show_seconds_big;
     int timer_running;
     long timer_seconds;
+    int autocolor;
+    char distro[64];
 } ClockState;
 
 
