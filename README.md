@@ -47,11 +47,11 @@ format=24h
 
 if no configuration is found in ~/.clockrc, the clock detects your distribution and applies its signature color:
 
-    Fedora: Azul:.  
-    Arch: Cyan.  
+    Fedora: Blue.  
+    Arch:   Cyan.  
     Ubuntu: Orange.  
     Debian: Red.  
-    Mint: Green.  
+    Mint:   Green.  
 
       Support for more distributions will be added over time.
 ## Available Colors:
