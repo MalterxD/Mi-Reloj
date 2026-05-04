@@ -1,18 +1,12 @@
+#ifndef CLOCK_H
 #define CLOCK_H
 
 #include <time.h>
 
-#define CLOCK_MODE     0
-#define TIMER_MODE     1
-#define SET_TIMER_MODE 2
-
 typedef struct {
-    int mode;
     int use_24h;
     int digit_color;
     int show_seconds_big;
-    int timer_running;
-    long timer_seconds;
     int autocolor;
     char distro[64];
 } ClockState;

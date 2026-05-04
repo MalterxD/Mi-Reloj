@@ -31,7 +31,6 @@ The code is designed following modularity principles:
 ```bash
     s: Toggle seconds.
     t: Toggle 12h/24h format.
-    v: Enter Timer mode / Return to Clock.
     Space: Pause or resume the timer (Timer mode only).
     q or Esc: Exit the program.
 ```
