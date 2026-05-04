@@ -1,62 +1,58 @@
-# Reloj CLI
+# CLI Clock
 
-<p align="center">
-  <img src="assets/reloj.png" alt="Reloj CLI Preview" width="600">
-</p>
+A digital clock for the terminal written in C.
 
-Reloj digital para la terminal escrito en **C**.
-
-## Instalacion
+## Installation
 ```bash
 make
 sudo make install
 make setup
 ```
 
-## Uso y Argumentos
+## Usage and Arguments
 
-Ejecuta el comando desde cualquier lugar:
+Run the command from anywhere:
 
 ```bash
-    clock (Formato por defecto)
+    clock: Default format.
 
-    clock -12 (Modo 12 horas)
+    clock -12: 12-hour mode.
 
-    clock --help (Ayuda)
+    clock --help: Help. (obviously)
 ```
-## Arquitectura del Reloj
+## Architecture
 
-El código está diseñado siguiendo principios de modularidad:
+The code is designed following modularity principles:
 
-    reloj.h: Definición de estructuras de estado y contratos de funciones.
-    reloj.c: Lógica de renderizado, manejo de terminal (Raw Mode) y motor del temporizador.
+    clock.h: Definition of state structures and function contracts.
+    clock.c: Rendering logic, terminal managment (Raw Mode), and timer engine.
 
-## Controles
+## Controls
 ```bash
-    s: Alternar tamaño de segundos.
-    t: Alternar 12h/24h.
-    v: Entrar al modo Temporizador / Volver al Reloj.
-    Espacio: Pausar o reanudar el temporizador (solo en modo temporizador).
-    q o Esc: Salir del programa.
+    s: Toggle seconds.
+    t: Toggle 12h/24h format.
+    v: Enter Timer mode / Return to Clock.
+    Space: Pause or resume the timer (Timer mode only).
+    q or Esc: Exit the program.
 ```
-## Configuracion
+## Configuration
 
-Edita el archivo ~/.relojrc para personalizar el color y formato:
+Edit the ~/.clockrc file to customize color and format:
 ```bash
-autocolor=false
 color=cyan
-format=12h
+autocolor=true
+format=24h
 ```
-## Colores por Distro
+## Distro-based Colors
 
-Si no configuras nada en tu ~/.relojrc, el reloj detecta qué distro usas y se pone de su color:
+if no configuration is found in ~/.clockrc, the clock detects your distribution and applies its signature color:
 
-    Fedora: Azul.  
+    Fedora: Azul:.  
     Arch: Cyan.  
-    Ubuntu: Naranja.  
-    Debian: Rojo.  
-    Mint: Verde.  
+    Ubuntu: Orange.  
+    Debian: Red.  
+    Mint: Green.  
 
-    Iré añadiendo más colores para otras distros poco a poco, según vaya teniendo tiempo.
-## Colores disponibles:
+      Support for more distributions will be added over time.
+## Available Colors:
     white, red, green, yellow, blue, magenta, cyan, orange, pink, gray.
