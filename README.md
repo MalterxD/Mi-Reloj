@@ -1,5 +1,9 @@
 # CLI Clock
 
+<p align="center">
+  <img src="assets/Preview.png" width="600">
+</p>
+
 A digital clock for the terminal written in C.
 
 ## Installation
