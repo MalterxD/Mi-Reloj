@@ -2,6 +2,7 @@
 #define _DEFAULT_SOURCE
 
 #include "clock.h"
+#include "battery.h"
 #include <errno.h>
 #include <signal.h>
 #include <stdio.h>
@@ -103,6 +104,7 @@ void load_config(ClockState *state) {
         if (strcasecmp(key, "autocolor") == 0) state->autocolor = (strcasecmp(val, "true") == 0);
         else if (strcasecmp(key, "color") == 0) { int code = color_name_to_ansi256(val); if (code >= 0) state->digit_color = code; }
         else if (strcasecmp(key, "format") == 0) state->use_24h = (strcasecmp(val, "24h") == 0);
+        else if (strcasecmp(key, "show_battery") == 0) state->show_battery = (strcasecmp(val, "true") == 0);
     }
     fclose(f);
 }
@@ -166,20 +168,63 @@ void draw_clock_centered(int term_rows, int term_cols, int hh, int mm, int ss, c
     int n_parts = want_seconds ? 8 : 5, colons = want_seconds ? 2 : 1, digits = want_seconds ? 6 : 4;
     int px_w, gap_px, time_w, fit = 0;
     int configs[3][2] = {{2, 1}, {1, 1}, {1, 0}};
+
     for (int i = 0; i < 3; i++) {
         px_w = configs[i][0]; gap_px = configs[i][1];
         time_w = (digits * 5 + colons * 5) * px_w + (n_parts - 1) * gap_px;
         if (time_w <= term_cols) { fit = 1; break; }
     }
+
     if (!fit) { draw_small_clock(term_rows, term_cols, hh, mm, ss, is_pm, state); return; }
+
     draw_big_clock(term_rows, term_cols, hh, mm, ss, n_parts, time_w, px_w, gap_px, state);
+
     int row = ((term_rows - 7) / 2 + 1) + 8;
     static const char *months[] = {"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
     static const char *days[] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
-    char date_str[64]; snprintf(date_str, sizeof(date_str), "%s, %s %d %04d", days[t->tm_wday], months[t->tm_mon], t->tm_mday, t->tm_year + 1900);
-    if (row < term_rows) { move_cursor(row++, (term_cols - (int)strlen(date_str)) / 2 + 1); printf("\033[38;5;245m%s\033[0m", date_str); }
-    if (state->distro[0] != '\0' && row < term_rows) { move_cursor(row++, (term_cols - (int)strlen(state->distro)) / 2 + 1); printf("\033[38;5;240m%s\033[0m", state->distro); }
-    if (!state->use_24h && row < term_rows) { move_cursor(row++, (term_cols - 2) / 2 + 1); printf("\033[38;5;245m%s\033[0m", is_pm ? "PM" : "AM"); }
+    char date_str[64];
+    snprintf(date_str, sizeof(date_str), "%s, %s %d %04d", days[t->tm_wday], months[t->tm_mon], t->tm_mday, t->tm_year + 1900);
+
+    if (row < term_rows) {
+        move_cursor(row++, (term_cols - (int)strlen(date_str)) / 2 + 1);
+        printf("\033[38;5;245m%s\033[0m", date_str);
+    }
+
+    if (state->distro[0] != '\0' && row < term_rows) {
+        move_cursor(row++, (term_cols - (int)strlen(state->distro)) / 2 + 1);
+        printf("\033[38;5;240m%s\033[0m", state->distro);
+    }
+
+    if (state->show_battery && row < term_rows) {
+        BatteryInfo b = get_battery_info();
+        const char *icon = "󰁹";
+        if (strcmp(b.status, "Charging") == 0) icon = "󱐋";
+        else if (b.percentage < 40) icon = "󰂃";
+        else if (b.percentage < 90) icon = "󰁾";
+
+        int bar_width = 10;
+        int filled = (b.percentage * bar_width) / 100;
+        int color = 196;
+        if (b.percentage > 50) color = 120;
+        else if (b.percentage > 20) color = 226;
+
+        char bar_str[32];
+        int pos = 0;
+        bar_str[pos++] = '[';
+        for (int i = 0; i < bar_width; i++) bar_str[pos++] = (i < filled) ? '|' : '-';
+        bar_str[pos++] = ']';
+        bar_str[pos] = '\0';
+
+        char full_line[128];
+        int text_len = snprintf(full_line, sizeof(full_line), "%s %s %d%%", icon, bar_str, b.percentage);
+        move_cursor(row++, (term_cols - (text_len - 3)) / 2 + 1);
+        printf("\033[38;5;%dm%s\033[0m", color, full_line);
+    }
+
+    if (!state->use_24h && row < term_rows) {
+        move_cursor(row++, (term_cols - 2) / 2 + 1);
+        printf("\033[38;5;245m%s\033[0m", is_pm ? "PM" : "AM");
+    }
 }
 
 void print_help(const char *progname) {
@@ -187,32 +232,34 @@ void print_help(const char *progname) {
     printf("Options:\n");
     printf("  -h, --help     Show this help message\n");
     printf("  -12            Start in 12h format mode\n");
+    printf("  -b, --battery  Show battery status\n");
     printf("Controls (Inside):\n");
     printf("  q, Esc         Quit the clock\n");
     printf("  s              Toggle big seconds\n");
     printf("  t              Toggle 12h/24h format\n");
+    printf("  b              Toggle battery status\n");
 }
 
 int main(int argc, char *argv[]) {
-    ClockState state = { .use_24h = 1, .digit_color = 252, .show_seconds_big = 0, .autocolor = 1 };
+    ClockState state = { .use_24h = 1, .digit_color = 252, .show_seconds_big = 0, .autocolor = 1, .show_battery = 0 };    
     
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             print_help(argv[0]);
             return 0;
-        } else if (strcmp(argv[i], "-12") == 0) {
-            state.use_24h = 0;
         }
     }
+
 
     get_distro_short(state.distro, sizeof(state.distro));
     load_config(&state);
     
-    for (int i = 1; i < argc; i++) {
+   for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-12") == 0) state.use_24h = 0;
+        else if (strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--battery") == 0) state.show_battery = 1;
     }
 
-    if (state.autocolor) { int d_color = get_color_by_distro(state.distro); if (d_color != 252) state.digit_color = d_color; }
+   if (state.autocolor) { int d_color = get_color_by_distro(state.distro); if (d_color != 252) state.digit_color = d_color; }
     struct sigaction sa = { .sa_handler = on_signal }; sigaction(SIGINT, &sa, NULL); sigaction(SIGTERM, &sa, NULL);
     struct sigaction sa_win = { .sa_handler = on_winch }; sigaction(SIGWINCH, &sa_win, NULL);
     if (enable_raw_mode() != 0) return 1;
@@ -235,6 +282,7 @@ int main(int argc, char *argv[]) {
                 }
                 else if (ch == 's' || ch == 'S') { state.show_seconds_big = !state.show_seconds_big; g_need_clear = 1; force_redraw = 1; }
                 else if (ch == 't' || ch == 'T') { state.use_24h = !state.use_24h; g_need_clear = 1; force_redraw = 1; }
+                else if (ch == 'b' || ch == 'B') { state.show_battery = !state.show_battery; g_need_clear = 1; force_redraw = 1; }
             }
         }
         int r, c; get_terminal_size(&r, &c);

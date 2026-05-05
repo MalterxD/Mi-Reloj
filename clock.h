@@ -8,6 +8,7 @@ typedef struct {
     int digit_color;
     int show_seconds_big;
     int autocolor;
+    int show_battery;
     char distro[64];
 } ClockState;
 

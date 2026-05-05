@@ -18,25 +18,27 @@ Run the command from anywhere:
 
     clock -12: 12-hour mode.
 
+    clock -b, --battery: Enable battery status display
+
     clock --help: Help. (obviously)
 ```
 ## Architecture
 
 The code is designed following modularity principles:
 
-    clock.h: Definition of state structures and function contracts.
-    clock.c: Rendering logic, terminal managment (Raw Mode), and timer engine.
-
+    clock.h / clock.c: Rendering logic, terminal management (Raw Mode), and UI engine.
+    battery.h / battery.c: System abstraction to read power supply status from /sys/class/power_supply/.
+    
 ## Controls
 ```bash
     s: Toggle seconds.
     t: Toggle 12h/24h format.
-    Space: Pause or resume the timer (Timer mode only).
     q or Esc: Exit the program.
+    b: Toggle battery status display
 ```
-## Configuration
 
-Edit the ~/.clockrc file to customize color and format:
+## Configuration
+Edit the ~/.clockrc file to customize color and behavior:
 ```bash
 color=cyan
 autocolor=true
@@ -44,8 +46,7 @@ format=24h
 ```
 ## Distro-based Colors
 
-if no configuration is found in ~/.clockrc, the clock detects your distribution and applies its signature color:
-
+If autocolor=true is set and no specific color is forced, the clock detects your distribution and applies its signature color:
     Fedora: Blue.  
     Arch:   Cyan.  
     Ubuntu: Orange.  

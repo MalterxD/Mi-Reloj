@@ -1,8 +1,8 @@
 CC      = gcc
 CFLAGS  = -Wall -Wextra -pedantic -std=c11 -O2
 TARGET  = clock
-SRC     = clock.c
-HDR     = clock.h
+SRC     = clock.c battery.c
+HDR     = clock.h battery.h
 
 PREFIX  = /usr/local
 BINDIR  = $(PREFIX)/bin
