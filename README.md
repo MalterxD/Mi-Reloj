@@ -17,6 +17,13 @@ To uninstall:
 ```bash
 sudo make uninstall
 ```
+## Run from Release
+
+If you just want to download the precompiled release:
+```bash
+tar -xvzf cli-clock-linux-x86_64.tar.gz
+./clock
+```
 
 ## Usage and Arguments
 
