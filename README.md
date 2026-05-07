@@ -51,6 +51,7 @@ format=24h
 ## Distro-based Colors
 
 If autocolor=true is set and no specific color is forced, the clock detects your distribution and applies its signature color:
+
     Fedora: Blue.  
     Arch:   Cyan.  
     Ubuntu: Orange.  
