@@ -1,4 +1,4 @@
-#define _POSIX_C_SOURCE 200810L
+#define _POSIX_C_SOURCE 200809L
 #define _DEFAULT_SOURCE
 
 #include "clock.h"
@@ -15,6 +15,7 @@
 #include <strings.h>
 #include <pwd.h>
 #include <poll.h>
+#include <ctype.h>
 
 static volatile sig_atomic_t g_stop = 0;
 static volatile sig_atomic_t g_need_clear = 0;
@@ -33,7 +34,10 @@ void restore_terminal(void) {
     ansi_show_cursor();
     fputs("\033[?1049l", stdout);
     fflush(stdout);
-    if (g_termios_saved) tcsetattr(STDIN_FILENO, TCSAFLUSH, &g_old_termios);
+    if (g_termios_saved) {
+        tcsetattr(STDIN_FILENO, TCSAFLUSH, &g_old_termios);
+        g_termios_saved = 0;
+    }
 }
 
 int enable_raw_mode(void) {
@@ -73,8 +77,9 @@ static void move_cursor(int r, int c) { printf("\033[%d;%dH", r, c); }
 
 static int color_name_to_ansi256(const char *name) {
     static const struct { const char *name; int code; } table[] = {
-        {"white", 252}, {"red", 196}, {"green", 118}, {"yellow", 226}, {"blue", 39},
-        {"magenta", 201}, {"cyan", 51}, {"orange", 214}, {"pink", 213}, {"gray", 240}, {NULL, -1}
+        {"red", 196}, {"green", 46}, {"blue", 21}, {"yellow", 226},
+        {"magenta", 201}, {"cyan", 51}, {"orange", 208}, {"white", 231},
+        {NULL, -1}
     };
     for (int i = 0; table[i].name != NULL; i++)
         if (strcasecmp(name, table[i].name) == 0) return table[i].code;
@@ -83,6 +88,8 @@ static int color_name_to_ansi256(const char *name) {
 
 static char* trim_spaces(char *str) {
     while (*str == ' ' || *str == '\t') str++;
+    char *end = str + strlen(str) - 1;
+    while (end > str && (isspace(*end))) { *end = '\0'; end--; }
     return str;
 }
 
@@ -100,11 +107,19 @@ void load_config(ClockState *state) {
         if (line[0] == '#' || line[0] == '\n' || line[0] == '\0') continue;
         char *eq = strchr(line, '='); if (!eq) continue;
         *eq = '\0'; char *key = trim_spaces(line), *val = trim_spaces(eq + 1);
-        char *nl = strchr(val, '\n'); if (nl) *nl = '\0';
         if (strcasecmp(key, "autocolor") == 0) state->autocolor = (strcasecmp(val, "true") == 0);
-        else if (strcasecmp(key, "color") == 0) { int code = color_name_to_ansi256(val); if (code >= 0) state->digit_color = code; }
+        else if (strcasecmp(key, "color") == 0) { 
+            if (isdigit(val[0])) {
+                int code = atoi(val);
+                if (code >= 0 && code <= 255) state->digit_color = code;
+            } else {
+                int code = color_name_to_ansi256(val);
+                if (code >= 0) state->digit_color = code;
+            }
+        }
         else if (strcasecmp(key, "format") == 0) state->use_24h = (strcasecmp(val, "24h") == 0);
         else if (strcasecmp(key, "show_battery") == 0) state->show_battery = (strcasecmp(val, "true") == 0);
+        else if (strcasecmp(key, "seconds") == 0) state->show_seconds_big = (strcasecmp(val, "true") == 0);
     }
     fclose(f);
 }
@@ -112,30 +127,30 @@ void load_config(ClockState *state) {
 static void get_distro_short(char *buf, size_t len) {
     buf[0] = '\0';
     FILE *f = fopen("/etc/os-release", "r"); if (!f) return;
-    char id[64] = {0}, name[128] = {0}, line[256];
+    char id[64] = {0}, line[256];
     while (fgets(line, sizeof(line), f)) {
         if (strncmp(line, "ID=", 3) == 0) {
             char *val = line + 3; if (*val == '"') val++;
-            size_t l = strlen(val); while (l > 0 && (val[l-1] == '\n' || val[l-1] == '"')) val[--l] = '\0';
+            size_t l = strlen(val); while (l > 0 && (val[l-1] == '\n' || val[l-1] == '"' || val[l-1] == '\r')) val[--l] = '\0';
             snprintf(id, sizeof(id), "%s", val);
-        } else if (strncmp(line, "NAME=", 5) == 0) {
-            char *val = line + 5; if (*val == '"') val++;
-            size_t l = strlen(val); while (l > 0 && (val[l-1] == '\n' || val[l-1] == '"')) val[--l] = '\0';
-            snprintf(name, sizeof(name), "%s", val);
+            break;
         }
     }
     fclose(f);
-    static const struct { const char *id; const char *label; } known[] = {
-        {"fedora", "Fedora"}, {"arch", "Arch Linux"}, {"debian", "Debian"}, {"ubuntu", "Ubuntu"}, {NULL, NULL}
-    };
-    for (int i = 0; known[i].id != NULL; i++) if (strcasecmp(id, known[i].id) == 0) { snprintf(buf, len, "%s", known[i].label); return; }
-    if (name[0] != '\0') snprintf(buf, len, "%s", name);
+    snprintf(buf, len, "%s", id);
 }
 
 static int get_color_by_distro(const char *distro) {
-    if (strcasecmp(distro, "Fedora") == 0) return 39;
-    if (strcasecmp(distro, "Arch Linux") == 0) return 51;
-    if (strcasecmp(distro, "Ubuntu") == 0) return 208;
+    if (strcasecmp(distro, "fedora") == 0) return 39;
+    if (strcasecmp(distro, "arch") == 0) return 33;
+    if (strcasecmp(distro, "ubuntu") == 0) return 202;
+    if (strcasecmp(distro, "debian") == 0) return 160;
+    if (strcasecmp(distro, "linuxmint") == 0) return 119;
+    if (strcasecmp(distro, "kali") == 0) return 69;
+    if (strcasecmp(distro, "pop") == 0) return 45;
+    if (strcasecmp(distro, "manjaro") == 0) return 120;
+    if (strcasecmp(distro, "void") == 0) return 107;
+    if (strcasecmp(distro, "opensuse") == 0 || strcasecmp(distro, "opensuse-tumbleweed") == 0) return 113;
     return 252;
 }
 
@@ -185,22 +200,28 @@ void draw_clock_centered(int term_rows, int term_cols, int hh, int mm, int ss, c
     char date_str[64];
     snprintf(date_str, sizeof(date_str), "%s, %s %d %04d", days[t->tm_wday], months[t->tm_mon], t->tm_mday, t->tm_year + 1900);
 
-    if (row < term_rows) {
+    if (row <= term_rows) {
+        move_cursor(row, 1); printf("\033[2K");
         move_cursor(row++, (term_cols - (int)strlen(date_str)) / 2 + 1);
         printf("\033[38;5;245m%s\033[0m", date_str);
     }
 
-    if (state->distro[0] != '\0' && row < term_rows) {
+    if (state->distro[0] != '\0' && row <= term_rows) {
+        move_cursor(row, 1); printf("\033[2K");
         move_cursor(row++, (term_cols - (int)strlen(state->distro)) / 2 + 1);
         printf("\033[38;5;240m%s\033[0m", state->distro);
     }
 
-    if (state->show_battery && row < term_rows) {
+if (state->show_battery && row <= term_rows) {
         BatteryInfo b = get_battery_info();
-        const char *icon = "󰁹";
-        if (strcmp(b.status, "Charging") == 0) icon = "󱐋";
-        else if (b.percentage < 40) icon = "󰂃";
-        else if (b.percentage < 90) icon = "󰁾";
+        const char *icon = "󱐋";
+        if (strcmp(b.status, "Charging") != 0) {
+            if (b.percentage < 20) icon = "󰂎";
+            else if (b.percentage < 40) icon = "󰁼";
+            else if (b.percentage < 60) icon = "󰁾";
+            else if (b.percentage < 85) icon = "󰂀";
+            else icon = "󰁹";
+        }
 
         int bar_width = 10;
         int filled = (b.percentage * bar_width) / 100;
@@ -215,54 +236,98 @@ void draw_clock_centered(int term_rows, int term_cols, int hh, int mm, int ss, c
         bar_str[pos++] = ']';
         bar_str[pos] = '\0';
 
+        int perc_digits = (b.percentage >= 100) ? 3 : (b.percentage >= 10) ? 2 : 1;
+        int visual_width = 1 + 1 + (bar_width + 2) + 1 + perc_digits + 1;
+
         char full_line[128];
-        int text_len = snprintf(full_line, sizeof(full_line), "%s %s %d%%", icon, bar_str, b.percentage);
-        move_cursor(row++, (term_cols - (text_len - 3)) / 2 + 1);
+        snprintf(full_line, sizeof(full_line), "%s %s %d%%", icon, bar_str, b.percentage);
+        
+        move_cursor(row, 1); printf("\033[2K");
+        move_cursor(row++, (term_cols - visual_width) / 2 + 1);
         printf("\033[38;5;%dm%s\033[0m", color, full_line);
     }
 
-    if (!state->use_24h && row < term_rows) {
+    if (!state->use_24h && row <= term_rows) {
+        move_cursor(row, 1); printf("\033[2K");
         move_cursor(row++, (term_cols - 2) / 2 + 1);
         printf("\033[38;5;245m%s\033[0m", is_pm ? "PM" : "AM");
     }
+    
+    while (row <= term_rows) { move_cursor(row++, 1); printf("\033[2K"); }
 }
 
 void print_help(const char *progname) {
     printf("Usage: %s [OPTIONS]\n", progname);
     printf("Options:\n");
-    printf("  -h, --help     Show this help message\n");
-    printf("  -12            Start in 12h format mode\n");
-    printf("  -b, --battery  Show battery status\n");
-    printf("Controls (Inside):\n");
-    printf("  q, Esc         Quit the clock\n");
-    printf("  s              Toggle big seconds\n");
-    printf("  t              Toggle 12h/24h format\n");
-    printf("  b              Toggle battery status\n");
+    printf("  -h, --help               Show this help message\n");
+    printf("  -12                      Start in 12-hour format\n");
+    printf("  -b, --battery [on|off]   Toggle battery status display\n");
+    printf("  -s, --seconds [on|off]   Toggle large seconds display\n");
+    printf("  -C <color>               Set digit color (0-255 or name)\n");
+    printf("                           Names: red, green, blue, yellow, magenta, cyan, orange, white\n");
+    printf("Interactive Controls:\n");
+    printf("  q, Esc                   Exit\n");
+    printf("  s                        Toggle seconds display\n");
+    printf("  t                        Toggle 12h/24h format\n");
+    printf("  b                        Toggle battery display\n");
+}
+
+static int parse_bool_arg(const char *arg) {
+    if (!arg) return -1;
+    if (strcasecmp(arg, "on") == 0 || strcasecmp(arg, "true") == 0) return 1;
+    if (strcasecmp(arg, "off") == 0 || strcasecmp(arg, "false") == 0) return 0;
+    return -1;
 }
 
 int main(int argc, char *argv[]) {
     ClockState state = { .use_24h = 1, .digit_color = 252, .show_seconds_big = 0, .autocolor = 1, .show_battery = 0 };    
     
+    get_distro_short(state.distro, sizeof(state.distro));
+    load_config(&state);
+
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             print_help(argv[0]);
             return 0;
+        } else if (strcmp(argv[i], "-12") == 0) {
+            state.use_24h = 0;
+        } else if (strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--battery") == 0) {
+            if (i + 1 < argc) {
+                int val = parse_bool_arg(argv[i+1]);
+                if (val != -1) { state.show_battery = val; i++; }
+                else state.show_battery = 1;
+            } else {
+                state.show_battery = 1;
+            }
+        } else if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--seconds") == 0) {
+            if (i + 1 < argc) {
+                int val = parse_bool_arg(argv[i+1]);
+                if (val != -1) { state.show_seconds_big = val; i++; }
+                else state.show_seconds_big = 1;
+            } else {
+                state.show_seconds_big = 1;
+            }
+        } else if (strcmp(argv[i], "-C") == 0 && i + 1 < argc) {
+            const char *color_arg = argv[++i];
+            state.autocolor = 0;
+            if (isdigit(color_arg[0])) {
+                int code = atoi(color_arg);
+                if (code >= 0 && code <= 255) state.digit_color = code;
+            } else {
+                int code = color_name_to_ansi256(color_arg);
+                if (code >= 0) state.digit_color = code;
+            }
         }
     }
 
-
-    get_distro_short(state.distro, sizeof(state.distro));
-    load_config(&state);
+    if (state.autocolor) { int d_color = get_color_by_distro(state.distro); if (d_color != 252) state.digit_color = d_color; }
     
-   for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-12") == 0) state.use_24h = 0;
-        else if (strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--battery") == 0) state.show_battery = 1;
-    }
-
-   if (state.autocolor) { int d_color = get_color_by_distro(state.distro); if (d_color != 252) state.digit_color = d_color; }
     struct sigaction sa = { .sa_handler = on_signal }; sigaction(SIGINT, &sa, NULL); sigaction(SIGTERM, &sa, NULL);
     struct sigaction sa_win = { .sa_handler = on_winch }; sigaction(SIGWINCH, &sa_win, NULL);
+    
     if (enable_raw_mode() != 0) return 1;
+    atexit(restore_terminal);
+
     fputs("\033[?1049h", stdout); ansi_hide_cursor();
     struct pollfd pfd = {STDIN_FILENO, POLLIN, 0};
     time_t last_tick = 0;
@@ -286,17 +351,20 @@ int main(int argc, char *argv[]) {
             }
         }
         int r, c; get_terminal_size(&r, &c);
-        if (g_need_clear) { printf("\033[2J"); g_need_clear = 0; }
         time_t now = time(NULL);
-        if (now != last_tick || force_redraw) {
+        if (now != last_tick || force_redraw || g_need_clear) {
             struct tm *t = localtime(&now);
             int dh = t->tm_hour, dm = t->tm_min, ds = t->tm_sec, pm = (dh >= 12);
             if (!state.use_24h) { dh %= 12; if (dh == 0) dh = 12; }
-            printf("\033[H"); draw_clock_centered(r, c, dh, dm, ds, t, pm, &state);
+            
+            if (g_need_clear) { printf("\033[2J"); g_need_clear = 0; }
+            printf("\033[H"); 
+            draw_clock_centered(r, c, dh, dm, ds, t, pm, &state);
             fflush(stdout);
+            
             last_tick = now;
             force_redraw = 0;
         }
     }
-    restore_terminal(); return 0;
+    return 0;
 }
