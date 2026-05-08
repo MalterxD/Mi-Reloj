@@ -6,6 +6,17 @@
 
 A digital clock for the terminal written in C.
 
+## Prerequisites
+
+To compile this project from source, you need a C compiler and Make installed on your system:
+
+| Component    | Recommended Tools |
+|--------------|-------------------|
+| Compiler     | `gcc` or `clang`  |
+| Build Tool   | `make`            |
+
+These tools are typically found in packages like build-essential, development-tools, or base-devel depending on your distribution.
+
 ## Installation
 ```bash
 make
