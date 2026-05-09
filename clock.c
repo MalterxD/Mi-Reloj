@@ -108,6 +108,7 @@ void load_config(ClockState *state) {
         char *eq = strchr(line, '='); if (!eq) continue;
         *eq = '\0'; char *key = trim_spaces(line), *val = trim_spaces(eq + 1);
         if (strcasecmp(key, "autocolor") == 0) state->autocolor = (strcasecmp(val, "true") == 0);
+        else if (strcasecmp(key, "nerdfonts") == 0) state->use_nerdfonts = (strcasecmp(val, "true") == 0);
         else if (strcasecmp(key, "color") == 0) { 
             if (isdigit(val[0])) {
                 int code = atoi(val);
@@ -124,34 +125,39 @@ void load_config(ClockState *state) {
     fclose(f);
 }
 
-static void get_distro_short(char *buf, size_t len) {
-    buf[0] = '\0';
+static int get_color_by_distro(const char *id) {
+    if (!id) return 252;
+    if (strcasecmp(id, "fedora") == 0) return 39;
+    if (strcasecmp(id, "arch") == 0) return 33;
+    if (strcasecmp(id, "ubuntu") == 0) return 202;
+    if (strcasecmp(id, "debian") == 0) return 160;
+    if (strcasecmp(id, "linuxmint") == 0) return 119;
+    if (strcasecmp(id, "kali") == 0) return 69;
+    if (strcasecmp(id, "pop") == 0) return 45;
+    if (strcasecmp(id, "manjaro") == 0) return 120;
+    if (strcasecmp(id, "void") == 0) return 107;
+    if (strstr(id, "opensuse") != NULL) return 113; 
+    return 252;
+}
+
+static void get_distro_info(char *name_buf, size_t name_len, char *id_buf, size_t id_len) {
+    name_buf[0] = '\0'; id_buf[0] = '\0';
     FILE *f = fopen("/etc/os-release", "r"); if (!f) return;
-    char id[64] = {0}, line[256];
+    char line[256];
     while (fgets(line, sizeof(line), f)) {
-        if (strncmp(line, "ID=", 3) == 0) {
+        if (strncmp(line, "NAME=", 5) == 0 && name_buf[0] == '\0') {
+            char *val = line + 5; if (*val == '"') val++;
+            size_t l = strlen(val); 
+            while (l > 0 && (val[l-1] == '\n' || val[l-1] == '"' || val[l-1] == '\r')) val[--l] = '\0';
+            snprintf(name_buf, name_len, "%s", val);
+        } else if (strncmp(line, "ID=", 3) == 0 && id_buf[0] == '\0') {
             char *val = line + 3; if (*val == '"') val++;
-            size_t l = strlen(val); while (l > 0 && (val[l-1] == '\n' || val[l-1] == '"' || val[l-1] == '\r')) val[--l] = '\0';
-            snprintf(id, sizeof(id), "%s", val);
-            break;
+            size_t l = strlen(val); 
+            while (l > 0 && (val[l-1] == '\n' || val[l-1] == '"' || val[l-1] == '\r')) val[--l] = '\0';
+            snprintf(id_buf, id_len, "%s", val);
         }
     }
     fclose(f);
-    snprintf(buf, len, "%s", id);
-}
-
-static int get_color_by_distro(const char *distro) {
-    if (strcasecmp(distro, "fedora") == 0) return 39;
-    if (strcasecmp(distro, "arch") == 0) return 33;
-    if (strcasecmp(distro, "ubuntu") == 0) return 202;
-    if (strcasecmp(distro, "debian") == 0) return 160;
-    if (strcasecmp(distro, "linuxmint") == 0) return 119;
-    if (strcasecmp(distro, "kali") == 0) return 69;
-    if (strcasecmp(distro, "pop") == 0) return 45;
-    if (strcasecmp(distro, "manjaro") == 0) return 120;
-    if (strcasecmp(distro, "void") == 0) return 107;
-    if (strcasecmp(distro, "opensuse") == 0 || strcasecmp(distro, "opensuse-tumbleweed") == 0) return 113;
-    return 252;
 }
 
 static void draw_small_clock(int rows, int cols, int hh, int mm, int ss, int is_pm, ClockState *state) {
@@ -206,21 +212,30 @@ void draw_clock_centered(int term_rows, int term_cols, int hh, int mm, int ss, c
         printf("\033[38;5;245m%s\033[0m", date_str);
     }
 
-    if (state->distro[0] != '\0' && row <= term_rows) {
+    if (state->distro_name[0] != '\0' && row <= term_rows) {
         move_cursor(row, 1); printf("\033[2K");
-        move_cursor(row++, (term_cols - (int)strlen(state->distro)) / 2 + 1);
-        printf("\033[38;5;240m%s\033[0m", state->distro);
+        move_cursor(row++, (term_cols - (int)strlen(state->distro_name)) / 2 + 1);
+        printf("\033[38;5;240m%s\033[0m", state->distro_name);
     }
 
-if (state->show_battery && row <= term_rows) {
+    if (state->show_battery && row <= term_rows) {
         BatteryInfo b = get_battery_info();
-        const char *icon = "󱐋";
-        if (strcmp(b.status, "Charging") != 0) {
-            if (b.percentage < 20) icon = "󰂎";
+        const char *icon;
+        int icon_visual_width;
+        
+        if (state->use_nerdfonts) {
+            icon_visual_width = 2;
+            if (strcmp(b.status, "Charging") == 0) icon = "󱐋";
+            else if (b.percentage < 20) icon = "󰂎";
             else if (b.percentage < 40) icon = "󰁼";
             else if (b.percentage < 60) icon = "󰁾";
             else if (b.percentage < 85) icon = "󰂀";
             else icon = "󰁹";
+        } else {
+            icon_visual_width = 3;
+            if (strcmp(b.status, "Charging") == 0) icon = "CHG";
+            else if (b.percentage < 20) icon = "LOW";
+            else icon = "BAT";
         }
 
         int bar_width = 10;
@@ -237,14 +252,11 @@ if (state->show_battery && row <= term_rows) {
         bar_str[pos] = '\0';
 
         int perc_digits = (b.percentage >= 100) ? 3 : (b.percentage >= 10) ? 2 : 1;
-        int visual_width = 1 + 1 + (bar_width + 2) + 1 + perc_digits + 1;
+        int visual_width = icon_visual_width + 1 + (bar_width + 2) + 1 + perc_digits + 1;
 
-        char full_line[128];
-        snprintf(full_line, sizeof(full_line), "%s %s %d%%", icon, bar_str, b.percentage);
-        
         move_cursor(row, 1); printf("\033[2K");
         move_cursor(row++, (term_cols - visual_width) / 2 + 1);
-        printf("\033[38;5;%dm%s\033[0m", color, full_line);
+        printf("\033[38;5;%dm%s %s %d%%\033[0m", color, icon, bar_str, b.percentage);
     }
 
     if (!state->use_24h && row <= term_rows) {
@@ -257,19 +269,18 @@ if (state->show_battery && row <= term_rows) {
 }
 
 void print_help(const char *progname) {
-    printf("Usage: %s [OPTIONS]\n", progname);
+    printf("Usage: %s [OPTIONS]\n\n", progname);
     printf("Options:\n");
-    printf("  -h, --help               Show this help message\n");
-    printf("  -12                      Start in 12-hour format\n");
-    printf("  -b, --battery [on|off]   Toggle battery status display\n");
-    printf("  -s, --seconds [on|off]   Toggle large seconds display\n");
-    printf("  -C <color>               Set digit color (0-255 or name)\n");
-    printf("                           Names: red, green, blue, yellow, magenta, cyan, orange, white\n");
-    printf("Interactive Controls:\n");
-    printf("  q, Esc                   Exit\n");
-    printf("  s                        Toggle seconds display\n");
-    printf("  t                        Toggle 12h/24h format\n");
-    printf("  b                        Toggle battery display\n");
+    printf("  -h, --help               Show help\n");
+    printf("  -12                      12-hour format\n");
+    printf("  -s, --seconds [on|off]   Large seconds toggle\n");
+    printf("  -b, --battery [on|off]   Battery bar toggle\n");
+    printf("  -C <color>               Set color (0-255 or name: red, green, blue...)\n\n");
+    printf("Interactive:\n");
+    printf("  q, ESC    Exit\n");
+    printf("  s         Toggle seconds\n");
+    printf("  t         Toggle 12h/24h\n");
+    printf("  b         Toggle battery\n");
 }
 
 static int parse_bool_arg(const char *arg) {
@@ -280,9 +291,10 @@ static int parse_bool_arg(const char *arg) {
 }
 
 int main(int argc, char *argv[]) {
-    ClockState state = { .use_24h = 1, .digit_color = 252, .show_seconds_big = 0, .autocolor = 1, .show_battery = 0 };    
+    ClockState state = { .use_24h = 1, .digit_color = 252, .show_seconds_big = 0, .autocolor = 1, .show_battery = 0, .use_nerdfonts = 0 };    
+    char distro_id[64] = {0};
     
-    get_distro_short(state.distro, sizeof(state.distro));
+    get_distro_info(state.distro_name, sizeof(state.distro_name), distro_id, sizeof(distro_id));
     load_config(&state);
 
     for (int i = 1; i < argc; i++) {
@@ -320,7 +332,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (state.autocolor) { int d_color = get_color_by_distro(state.distro); if (d_color != 252) state.digit_color = d_color; }
+    if (state.autocolor) { int d_color = get_color_by_distro(distro_id); if (d_color != 252) state.digit_color = d_color; }
     
     struct sigaction sa = { .sa_handler = on_signal }; sigaction(SIGINT, &sa, NULL); sigaction(SIGTERM, &sa, NULL);
     struct sigaction sa_win = { .sa_handler = on_winch }; sigaction(SIGWINCH, &sa_win, NULL);

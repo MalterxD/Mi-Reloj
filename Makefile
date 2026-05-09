@@ -1,6 +1,6 @@
 CC      = gcc
 CFLAGS  = -Wall -Wextra -pedantic -std=c11 -O2
-TARGET  = clock
+TARGET  = cli-clock
 SRC     = clock.c battery.c
 HDR     = clock.h battery.h
 PREFIX  = /usr/local

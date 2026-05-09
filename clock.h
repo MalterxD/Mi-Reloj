@@ -9,7 +9,8 @@ typedef struct {
     int show_seconds_big;
     int autocolor;
     int show_battery;
-    char distro[64];
+    int use_nerdfonts;
+    char distro_name[128];
 } ClockState;
 
 void load_config(ClockState *state);
