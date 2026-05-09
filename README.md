@@ -5,6 +5,7 @@
 </p>
 
 A digital clock for the terminal written in C.
+If you find a bug or have an idea, feel free to open an issue or PR 😆
 
 ## Prerequisites
 
