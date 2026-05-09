@@ -73,7 +73,7 @@ ok "Compiled successfully"
 echo ""
 echo "Installing to /usr/local/bin..."
 sudo make install || err "Installation failed. Try running with sudo."
-ok "Installed — you can now run: clock"
+ok "Installed — you can now run: cli-clock"
 
 echo ""
 if [ -f "$HOME/.clockrc" ]; then
