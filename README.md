@@ -18,22 +18,39 @@ To compile this project from source, you need a C compiler and Make installed on
 These tools are typically found in packages like build-essential, development-tools, or base-devel depending on your distribution.
 
 ## Installation
+
+### From source (Recommended)
+
+```bash
+git clone https://github.com/MalterxD/CLI-Clock
+cd CLI-Clock
+chmod +x install.sh
+./install.sh
+```
+
+The installer auto-detects your package manager, compiles, installs, and configures `~/.clockrc` — including Nerd Font detection.
+
+Or manually:
+
 ```bash
 make
 sudo make install
 make setup
 ```
+
 To uninstall:
 
 ```bash
 sudo make uninstall
 ```
-## Run from Release
 
-If you just want to download the precompiled release:
+### From release
+
+Download the precompiled binary from the [releases page](https://github.com/MalterxD/CLI-Clock/releases):
+
 ```bash
 tar -xvzf cli-clock-linux-x86_64.tar.gz
-./clock
+./cli-clock
 ```
 
 ## Usage and Arguments
@@ -41,20 +58,20 @@ tar -xvzf cli-clock-linux-x86_64.tar.gz
 Run the command from anywhere:
 
 ```bash
-clock              # Default (24h format)
-clock -12          # Start in 12-hour format
-clock -b           # Enable battery display
-clock -s           # Enable large seconds
-clock -C cyan      # Set digit color by name
-clock -C 39        # Set digit color by ANSI 256 code
-clock --help       # Show help
+cli-clock              # Default (24h format)
+cli-clock -12          # Start in 12-hour format
+cli-clock -b           # Enable battery display
+cli-clock -s           # Enable large seconds
+cli-clock -C cyan      # Set digit color by name
+cli-clock -C 39        # Set digit color by ANSI 256 code
+cli-clock --help       # Show help
 ```
 
 Flags `-b` and `-s` also accept `on` / `off`:
 
 ```bash
-clock -b off       # Force battery off even if enabled in config
-clock -s on        # Same as -s
+cli-clock -b off       # Force battery off even if enabled in config
+cli-clock -s on        # Same as -s
 ```
 
 ## Architecture
@@ -74,16 +91,17 @@ The code is designed following modularity principles:
 | `q` / Esc | Exit                    |
 
 ## Configuration
-Edit the ~/.clockrc file to customize color and behavior:
+
+Edit `~/.clockrc` to customize color and behavior:
 
 ```ini
 # ~/.clockrc
-
 color=cyan          # Digit color (name or 0-255)
 autocolor=true      # Auto-detect color based on distro
 format=24h          # 24h or 12h
 show_battery=false  # Show battery status
 seconds=false       # Show large seconds
+nerdfonts=false     # Use Nerd Font icons for battery display
 ```
 
 ## Distro-based Colors
