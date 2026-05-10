@@ -113,8 +113,6 @@ else
     exit 0
   }
 
-  make setup
-
   NERDFONTS=$(detect_nerdfonts)
   if [ "$NERDFONTS" = "true" ]; then
     ok "Nerd Fonts detected — battery icons enabled"
@@ -122,7 +120,39 @@ else
     warn "Nerd Fonts not detected — using ASCII icons (BAT/CHG/LOW)"
     warn "To enable icons later: set nerdfonts=true in ~/.clockrc"
   fi
-  echo "nerdfonts=$NERDFONTS" >>"$HOME/.clockrc"
+
+  cat >"$HOME/.clockrc" <<EOF
+# CLI Clock configuration
+# https://github.com/MalterxD/CLI-Clock
+
+# Clock color (name or 0-255). Ignored if autocolor=true
+color=cyan
+
+# Auto-detect color based on your distro
+autocolor=true
+
+# Distro name color: dim or auto (matches digit color)
+distro_color=dim
+
+# Time format: 24h or 12h
+format=24h
+
+# Show large seconds
+seconds=false
+
+# Show battery status
+show_battery=false
+
+# Use Nerd Font icons for battery display
+nerdfonts=$NERDFONTS
+
+# Date display: small, large, hidden
+date_size=small
+
+# Only show the clock, hide everything else
+clean_mode=false
+EOF
+
   ok "Created ~/.clockrc with default settings"
 fi
 

@@ -4,6 +4,9 @@
 #include <time.h>
 #include <stdbool.h>
 
+typedef enum { DATE_SMALL, DATE_LARGE, DATE_HIDDEN } DateSize;
+typedef enum { DISTRO_DIM, DISTRO_AUTO } DistroColor;
+
 typedef struct {
     bool use_24h;
     int digit_color;
@@ -14,6 +17,9 @@ typedef struct {
     char distro_name[128];
     bool screensaver;
     int x, y, vx, vy;
+    DateSize date_mode;
+    bool clean_mode;
+    DistroColor distro_color;
 } ClockState;
 
 void load_config(ClockState *state);

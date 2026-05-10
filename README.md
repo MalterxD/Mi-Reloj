@@ -65,6 +65,8 @@ cli-clock -12          # Start in 12-hour format
 cli-clock -b           # Enable battery display
 cli-clock -s           # Enable large seconds
 cli-clock -sc          # Enable screensaver mode
+cli-clock -d small     # Date format: small, large, hidden
+cli-clock --clean      # Only show the clock
 cli-clock -C cyan      # Set digit color by name
 cli-clock -C 39        # Set digit color by ANSI 256 code
 cli-clock --help       # Show help
@@ -99,12 +101,15 @@ Edit `~/.clockrc` to customize color and behavior:
 
 ```ini
 # ~/.clockrc
-color=cyan          # Digit color (name or 0-255)
-autocolor=true      # Auto-detect color based on distro
-format=24h          # 24h or 12h
-show_battery=false  # Show battery status
-seconds=false       # Show large seconds
-nerdfonts=false     # Use Nerd Font icons for battery display
+color=cyan            # Digit color (name or 0-255)
+autocolor=true        # Auto-detect color based on distro
+format=24h            # 24h or 12h
+show_battery=false    # Show battery status
+seconds=false         # Show large seconds
+nerdfonts=false       # Use Nerd Font icons for battery display
+date_size=small       # Date display: small, large, hidden
+clean_mode=false      # Only show the clock, hide everything else
+distro_color=dim      # Distro name color: dim or auto (matches digit color)
 ```
 
 ## Distro-based Colors
