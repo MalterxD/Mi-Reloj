@@ -91,7 +91,6 @@ The code is designed following modularity principles:
 | `s`       | Toggle seconds display  |
 | `t`       | Toggle 12h / 24h format |
 | `b`       | Toggle battery display  |
-| `m`       | Toggle screensaver      |
 | `q` / Esc | Exit                    |
 
 ## Configuration
