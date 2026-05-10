@@ -64,6 +64,7 @@ cli-clock              # Default (24h format)
 cli-clock -12          # Start in 12-hour format
 cli-clock -b           # Enable battery display
 cli-clock -s           # Enable large seconds
+cli-clock -sc          # Enable screensaver mode
 cli-clock -C cyan      # Set digit color by name
 cli-clock -C 39        # Set digit color by ANSI 256 code
 cli-clock --help       # Show help
@@ -80,8 +81,8 @@ cli-clock -s on        # Same as -s
 
 The code is designed following modularity principles:
 
-    clock.h / clock.c: Rendering logic, terminal management (Raw Mode), and UI engine.
-    battery.h / battery.c: System abstraction to read power supply status from /sys/class/power_supply/.
+- `src/clock.h` / `src/clock.c` — Rendering logic, terminal management (Raw Mode), and UI engine.
+- `src/battery.h` / `src/battery.c` — System abstraction to read power supply status from `/sys/class/power_supply/`
     
 ## Controls
 
@@ -90,6 +91,7 @@ The code is designed following modularity principles:
 | `s`       | Toggle seconds display  |
 | `t`       | Toggle 12h / 24h format |
 | `b`       | Toggle battery display  |
+| `m`       | Toggle screensaver      |
 | `q` / Esc | Exit                    |
 
 ## Configuration
@@ -126,6 +128,6 @@ When `autocolor=true` and no `-C` flag is passed, the clock picks a color based 
       Support for more distributions will be added over time.
 ## Available Colors:
   
-`red`, `green`, `blue`, `yellow`, `magenta`, `cyan`, `orange`, `white`
+`red`, `green`, `blue`, `yellow`, `magenta`, `cyan`, `orange`, `white`, `gray`, `pink`
 
 Or use any ANSI 256 color code directly: `color=214`

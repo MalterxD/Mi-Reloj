@@ -1,8 +1,8 @@
 CC      = gcc
-CFLAGS  = -Wall -Wextra -pedantic -std=c11 -O2
+CFLAGS  = -Wall -Wextra -pedantic -std=c11 -O2 -Isrc
 TARGET  = cli-clock
-SRC     = clock.c battery.c
-HDR     = clock.h battery.h
+SRC     = src/clock.c src/battery.c
+HDR     = src/clock.h src/battery.h
 PREFIX  = /usr/local
 BINDIR  = $(PREFIX)/bin
 

@@ -2,15 +2,18 @@
 #define CLOCK_H
 
 #include <time.h>
+#include <stdbool.h>
 
 typedef struct {
-    int use_24h;
+    bool use_24h;
     int digit_color;
-    int show_seconds_big;
-    int autocolor;
-    int show_battery;
-    int use_nerdfonts;
+    bool show_seconds_big;
+    bool autocolor;
+    bool show_battery;
+    bool use_nerdfonts;
     char distro_name[128];
+    bool screensaver;
+    int x, y, vx, vy;
 } ClockState;
 
 void load_config(ClockState *state);
